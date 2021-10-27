@@ -1,0 +1,231 @@
+import requests
+from bs4 import BeautifulSoup
+import re
+import pandas as pd
+
+response = requests.get("https://auto.ru/")
+html = response.content
+soup = BeautifulSoup(html, 'html.parser')
+df = []
+for x in soup.findAll("div"):
+    https = re.findall(r'https://auto.ru/cars/\w+/all/', str(x))
+    if len(https)>0:
+        df.append(pd.DataFrame({"url":https}))
+new_df = pd.DataFrame({"url":[]})
+for i in range(len(df)):
+    new_df = pd.concat([new_df, df[i]], axis=0)
+df = new_df
+df.to_csv("autoru.csv")
+df["Brand"] = df["url"].apply(lambda x: x[21:-5])
+df = df.groupby("url").agg(list)
+df["Brand"] = df["Brand"].apply(lambda x: x[0])
+df = df.reset_index()
+outtxt = {}brand_number=0
+while brand_number in range(0, len(df)//9):
+    pagenumber = 1
+    with open(str(df["Brand"].iloc[brand_number])+".txt", "w") as output:
+        outtxt[str(df["Brand"].iloc[brand_number])] = []
+        while True:
+            response = requests.get(df["url"].iloc[brand_number]+"?output_type=list&page="+str(pagenumber))
+            print(df["url"].iloc[brand_number]+"?output_type=list&page="+str(pagenumber))
+            html = response.content
+            soup = BeautifulSoup(html, "html.parser")
+            flag = False
+            for link in soup.findAll("link"):
+                if "output_type=list&amp;page="+str(pagenumber+1) in str(link):
+                    flag = True
+            metas = soup.findAll("meta")
+            for meta in metas:
+                output.write(str(meta))
+                outtxt[str(df["Brand"].iloc[brand_number])].append(str(meta))
+            if flag:
+                pagenumber+=1
+            else:
+                brand_number += 1
+                break
+for line in outtxt:
+    print(line)
+# This Python 3 environment comes with many helpful analytics libraries installed
+# It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python
+# For example, here's several helpful packages to load
+
+import numpy as np # linear algebra
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+import re
+import requests
+from bs4 import BeautifulSoup
+# Input data files are available in the read-only "../input/" directory
+# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
+
+columns = set()
+
+collection ={
+"priceCurrency" : [],
+"brand" : [],
+"color" : [],
+"availability" : [],
+"bodyType" : [],
+"price" : [],
+"vehicleTransmission" : [],
+"fuelType" : [],
+"vehicleConfiguration" : [],
+"name" : [],
+"url" : [],
+"productionDate" : [],
+"short_description" : [],
+"long_description" : []}
+
+def reset_counter():
+    return {"priceCurrency" : 0,
+            "brand" : 0,
+            "color" : 0,
+            "availability" : 0,
+            "bodyType" : 0,
+            "price" : 0,
+            "vehicleTransmission" : 0,
+            "fuelType" : 0,
+            "vehicleConfiguration" : 0,
+            "name" : 0,
+            "url" : 0,
+            "productionDate" : 0,
+            "short_description" : 0,
+            "long_description" : 0}
+
+counter = reset_counter()
+import os
+
+for brand_key in outtxt.keys():
+    for line in outtxt[brand_key]:
+        if "content" in line and "itemprop" in line:
+            splitted = line.split()
+            key, value = splitted[2][10:-3].strip("\""), splitted[1][8:].strip("\"")
+            if key in collection.keys():
+                if counter[key]==1:
+                    for internal_key in collection.keys():
+                        if counter[internal_key]==0:
+                                collection[internal_key].append("None")
+                    counter = reset_counter()
+                collection[key].append(value)
+                counter[key] = 1
+    if 0 in counter.values() and 1 in counter.values():
+        for key in collection.keys():
+            if counter[key]==0:
+                collection[key].append("None")
+        counter = reset_counter()
+uno = set()
+df = pd.DataFrame(collection)
+print(df)
+df.to_csv("out.csv")
+urls = df[df["url"]!="None"]["url"].unique()
+out2txt = []
+with open("out2.txt","w") as file:
+    for i in range(len(urls)):
+        file.write("url, "+urls[i]+"\n")
+        out2txt.append("url, "+urls[i])
+        print(str(round(i/len(urls)*100,2))+"%", urls[i])
+        web = requests.get(urls[i])
+        html = web.content
+        soup = BeautifulSoup(html, "lxml")
+        for x in soup.findAll("meta"):
+            if "name=\"description\"" in str(x):
+                splitted = str(x).split("\"")
+                key, value = "short_description", splitted[1].replace("\n", " ")
+                file.write(key+", "+value+"\n")
+                out2txt.append(key+", "+value)
+            if "itemprop=\"description\"" in str(x):
+                splitted = str(x).split("\"")
+                key, value = "long_description", splitted[1].replace("\n", " ")
+                file.write(key+", "+value+"\n")
+                out2txt.append(key+", "+value)
+            if "content" in str(x) and "itemprop" in str(x).lower():
+                splitted = str(x).split()
+                key, value = splitted[2][10:-3].strip("\""), splitted[1][8:].strip("\"")
+                file.write(key+", "+value+"\n")
+                out2txt.append(key+", "+value)
+ for line in out2txt:
+    print(line)
+import pandas as pd
+import time
+
+def reset_counter():
+    return {'fuelType':0,
+            'priceCurrency': 0,
+            'bodyType':0,
+            'vehicleTransmission':0,
+            'availability':0,
+            'price':0,
+            'image':0,
+            'brand':0,
+            'productionDate':0,
+            'modelDate':0, 
+            'color':0, 
+            'name':0,
+            'url':0,
+            'vehicleConfiguration':0,
+            "short_description" : 0,
+            "long_description" : 0}
+
+cols = set()
+
+counter = reset_counter()
+collection = dict()
+for key in counter.keys():
+    collection[key] = []
+#with open("../input/vehiclelist/out2.txt", "r", encoding='UTF8') as f:
+j = 0
+for line in out2txt:
+    if j%1000000 == 0:
+        print(j)
+    j+=1
+    splitted = line.split(",")
+    if len(splitted) > 1:
+        key, value = splitted[0].strip(), splitted[1].strip()
+        cols.add(key)
+        if key in collection.keys() and not (key in ["long_description", "short_description"]):
+            if counter[key]==1:
+                for internal_key in collection.keys():
+                    if counter[internal_key]==0:
+                        collection[internal_key].append("None")
+                counter = reset_counter()
+            collection[key].append(value)
+            counter[key] = 1
+        elif (key in ["long_description", "short_description"]):
+            value=""
+            for part in splitted[1:]:
+                value = value + part.replace("\t", " ")
+            if counter[key]==1:
+                for internal_key in collection.keys():
+                    if counter[internal_key]==0:
+                        collection[internal_key].append("None")
+                counter = reset_counter()
+            collection[key].append(value)
+            counter[key] = 1
+if 0 in counter.values() and 1 in counter.values():
+    for internal_key in collection.keys():
+        if counter[internal_key]==0:
+            collection[internal_key].append("End")
+    counter = reset_counter()
+df2 = pd.DataFrame(collection)
+for i in range(1,len(df)):
+    for key in df2.columns:
+        if df2[key].iloc[i] in ["None", None, "End", "", " "]:
+            df2[key].iloc[i] = df2[key].iloc[i-1]
+    if i%5000 == 0:
+        print(i)
+print(len(df))
+print(cols)
+df2 = df2.groupby("url").agg(list)
+df2 = df2.applymap(lambda x: x[-1])
+
+from datetime import datetime
+
+today = datetime.today()
+df2 = df2.reset_index()
+df2 = df2[df2["url"] != "None"]
+df2["Date"] = today
+df2.to_csv("individual_pages_"+str(today)+".csv", sep="\t")
+
+
+df2 = df2.merge(df, on="url", how="left")
+df2.to_csv("merged_report_"+str(today)+".csv", sep="\t")
+df2.to_excel("merged_report_"+str(today)+".xlsx")    
